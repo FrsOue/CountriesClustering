@@ -1,0 +1,1669 @@
+---
+title: "Clustering the Countries by using Unsupervised Learning for HELP International"
+author: "Data Mining Project"
+date: "19/05/2021"
+output: 
+  html_document: 
+    theme: flatly
+    df_print: paged 
+    highlight: tango
+    fig_width: 8
+    fig_eigth: 8
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+
+library(ggplot2)
+library(factoextra)
+library(Factoshiny)
+library(kableExtra)
+library(naniar)
+library(mlr)
+library(dplyr)
+library(plotly)
+library(DT)
+library(rmdformats)
+library(GGally)
+library(corrplot)
+library(RColorBrewer)
+library(data.table)
+library(cluster)
+library(NbClust)
+library(caTools)
+library(googleVis)
+library(nnet)
+library(MASS)
+library(caret)
+library(rpart)
+library(class)
+library(e1071)
+
+```
+
+
+```{r note}
+## {.unlisted .unnumbered}  > remove empty space in the TOC if you want to use it as hide or ...
+
+
+```
+
+
+```{r data}
+
+data <- read.csv('Country-data.csv', sep = ',', row.names = 1)
+
+```
+
+***
+
+# Objective 
+
+***
+
+To categorise the countries using socio-economic and health factors that determine the overall development of the country.
+
+***
+
+# About organization
+
+***
+HELP International is an international humanitarian NGO that is committed to fighting poverty and providing the people of backward countries with basic amenities and relief during the time of disasters and natural calamities.
+
+***
+
+# Problem Statement
+
+***
+HELP International have been able to raise around $ 10 million. Now the CEO of the NGO needs to decide how to use this money strategically and effectively. So, CEO has to make decision to choose the countries that are in the direst need of aid. Hence, your Job as a Data scientist is to categorise the countries using some socio-economic and health factors that determine the overall development of the country. Then you need to suggest the countries which the CEO needs to focus on the most.
+
+***
+
+# Data description & exploration
+
+***
+
+```{r}
+db <- read.csv('Country-data.csv', sep = ',')
+attach(db)
+
+datatable(data, filter = 'top', rownames = TRUE)
+```
+`
+
+> There are 9 quatitative variables provided in the dataset with 167 observations corresponding respectively to socio-economic factors of all countries around teh wolrd. Here is a summary of the variables with their types and meaning:
+
+
+country : Name of the country
+
+child_mort : Death of children under 5 years of age per 1000 live births
+
+exports : Exports of goods and services per capita. Given as %age of the GDP per capita
+
+health : Total health spending per capita. Given as %age of GDP per capita
+
+imports : Imports of goods and services per capita. Given as %age of the GDP per capita
+
+Income : Net income per person
+
+Inflation : The measurement of the annual growth rate of the Total GDP
+
+life_expec : The average number of years a new born child would live if the current mortality patterns are to remain the same
+
+total_fer : The number of children that would be born to each woman if the current age-fertility rates remain the same.
+
+gdpp : The GDP per capita. Calculated as the Total GDP divided by the total population.
+
+***
+
+```{r}
+sumr <- summarizeColumns(data)
+
+kable(sumr) %>%
+ kable_paper('hover', 5) %>%
+  kable_styling('striped', F, fixed_thead = TRUE, )
+```
+
+
+***
+
+# Descriptive Analysis 
+
+***
+ 
+## Univariate Analysis {.tabset .tabset-fade}
+
+
+### child mort {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 11)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+
+
+renderPlot(
+  ggplot(db)+aes(x=child_mort)+
+    geom_histogram(bins =input$bins, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+From the above two visualizations, we conclude that the minimum death of children under 5 years of age is 2.6 and the maximum is 208. The data in the histogram graph are right-skewed. Most of the sample values are clustered on the right side of the histogram, that mean countries with child mort of about 15 have the highest frequency count in our histogram distribution
+ 
+
+
+#### Boxplot
+
+```{r}
+#Plot graphic child
+
+plot1 <- ggplot(db,aes(x='', y=child_mort)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='blue')
+
+ggplotly(plot1)
+
+
+```
+
+From the above two visualizations, we conclude that the minimum death of children under 5 years of age is 2.6 and the maximum is 208. The data in the histogram graph are right-skewed. Most of the sample values are clustered on the right side of the histogram, that mean countries with child mort of about 15 have the highest frequency count in our histogram distribution
+ 
+
+#### {-}
+
+***
+
+
+ 
+### exports {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins2', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 11)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=exports)+
+    geom_histogram(bins =input$bins2, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+From the above two visualizations, we conclude that the minimum exports of goods factor is 0.11 and the maximum is 200. The data in the histogram graph are right-skewed. Most of the sample values are clustered on the right side of the histogram, countries with exports of 21 have the highest frequency count in our histogram distribution which is 37
+
+
+
+#### Boxplot
+
+
+```{r}
+#Plot graphic exports
+
+plot2 <- ggplot(db,aes(x='', y=exports)) +
+  geom_boxplot(color='coral')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot2)
+
+```
+
+From the above two visualizations, we conclude that the minimum exports of goods factor is 0.11 and the maximum is 200. The data in the histogram graph are right-skewed. Most of the sample values are clustered on the right side of the histogram, countries with exports of 21 have the highest frequency count in our histogram distribution which is 37
+
+
+#### {-}
+
+
+
+
+
+ 
+### health {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins3', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 11)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=health)+
+    geom_histogram(bins =input$bins3, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+From the above two visualizations, we conclude that the minimum exports of goods factor is 1.81 and the maximum is 17.90. From the histogram, we conclude that countries between class 4 and 56 have the highest health rate  among all the classes. countries with exports of 5 have the highest frequency count in our histogram distribution which is 27
+
+
+#### Boxplot
+
+
+```{r}
+#Plot graphic exports
+
+plot2 <- ggplot(db,aes(x='', y=health)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot2)
+
+```
+
+From the above two visualizations, we conclude that the minimum exports of goods factor is 1.81 and the maximum is 17.90. From the histogram, we conclude that countries between class 4 and 56 have the highest health rate  among all the classes. countries with exports of 5 have the highest frequency count in our histogram distribution which is 27
+
+
+#### {-}
+
+
+***
+
+ 
+### imports {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins4', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 11)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=imports)+
+    geom_histogram(bins =input$bins4, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+
+#### Boxplot
+
+
+```{r}
+#Plot graphic exports
+
+plot2 <- ggplot(db,aes(x='', y=imports)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot2)
+
+```
+
+#### {-}
+
+ 
+### income {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins5', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 15)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=income)+
+    geom_histogram(bins =input$bins5, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+
+
+#### Boxplot
+
+
+```{r}
+
+
+plot4 <- ggplot(db,aes(x='', y=income)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot4)
+
+```
+
+#### {-}
+
+### inflation {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins6', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 15)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=inflation)+
+    geom_histogram(bins =input$bins6, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+
+#### Boxplot
+
+
+```{r}
+
+
+plot5 <- ggplot(db,aes(x='', y=inflation)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot5)
+
+```
+
+#### {-}
+
+
+### life_expec {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins7', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 15)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=life_expec)+
+    geom_histogram(bins =input$bins7, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='life expec')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+              
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+
+
+#### Boxplot
+
+
+```{r}
+
+
+plot7 <- ggplot(db,aes(x='', y=life_expec)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot7)
+
+```
+
+#### {-}
+
+
+### total_fer {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins8', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 15)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=total_fer)+
+    geom_histogram(bins =input$bins8, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+              
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+
+#### Boxplot
+
+
+```{r}
+
+
+plot8 <- ggplot(db,aes(x='', y=total_fer)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot8)
+
+```
+
+#### {-}
+
+
+### gdpp {.tabset .tabset-fade}
+
+#### Histogram
+
+```{r}
+sliderInput(inputId = 'bins9', 'Choisissez nombre de calsses', 
+            min= 5, max = 120, value = 15)
+
+barfill <- "#4271AE"
+barlines <- "#1F3552"
+
+renderPlot(
+  ggplot(db)+aes(x=gdpp)+
+    geom_histogram(bins =input$bins9, aes(fill = ..count..), color = barlines)+
+    scale_x_continuous(name='chilf mort')+
+    scale_y_continuous(name='Effectif')+
+    ggtitle("title")+
+     theme_bw() +
+        theme(axis.line = element_line(size=1, colour = "black"),
+              panel.grid.major = element_line(colour = "#d3d3d3"),
+              panel.grid.minor = element_blank(),
+              panel.border = element_blank(), panel.background = element_blank(),
+              
+              text=element_text(family="Tahoma"),
+              axis.text.x=element_text(colour="black", size = 9),
+              axis.text.y=element_text(colour="black", size = 9))
+    
+)
+
+
+```
+
+
+
+#### Boxplot
+
+
+```{r}
+
+
+plot9 <- ggplot(db,aes(x='', y=gdpp)) +
+  geom_boxplot(color='blue')+
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_color_manual(values='green')
+
+ggplotly(plot9)
+
+```
+
+#### {-}
+
+## Correlation Matrix
+
+***
+
+
+
+
+```{r}
+
+# Code source :
+# https://towardsdatascience.com/beautiful-correlation-plots-in-r-a-new-approach-d3b93d9c77be
+
+
+
+corrdata <- cor(data[1:9])
+
+
+#do this before the transformation!
+corrdata[upper.tri(corrdata, diag = TRUE)] <- NA
+corrdata <- corrdata[-1, -ncol(corrdata)]
+
+#Store our variable names for later use
+x_labels <- colnames(corrdata)
+y_labels <- rownames(corrdata)
+
+#Change the variable names to numeric for the grid
+colnames(corrdata) <- 1:ncol(corrdata)
+rownames(corrdata) <- nrow(corrdata):1
+
+#Melt the data into the desired format
+plotdata <- melt(corrdata)
+
+#Adding the size variable & scaling it
+plotdata$size <- (abs(plotdata$value))
+scaling <- 500 / ncol(corrdata) / 2
+plotdata$size <- plotdata$size * scaling
+
+#Setting x and y ranges for the chart
+xrange <- c(0.5, length(x_labels)+0.5)
+yrange <- c(0.5, length(y_labels)+0.5)
+
+#Setting the gridlines
+x_grid <- seq(1.5, length(x_labels)-0.5, 1)
+y_grid <- seq(1.5, length(y_labels)-0.5, 1)
+
+#Axes definitions
+xAx1 <- list(showgrid = FALSE,
+            showline = FALSE,
+            zeroline =  FALSE,
+            tickvals = colnames(corrdata),
+            ticktext = x_labels,
+            title = "",
+            range = xrange,
+            rangemode = "tozero")
+
+xAx2 <- list(showgrid = TRUE,
+            showline = FALSE,
+            zeroline =  FALSE,
+            overlaying = "x",
+            showticklabels = FALSE,
+            range = xrange,
+            tickvals = x_grid)
+
+yAx1 <- list(autoaxis = FALSE,
+            showgrid = FALSE,
+            showline = FALSE,
+            zeroline =  FALSE,
+            tickvals = rownames(corrdata),
+            ticktext = y_labels,
+            title = FALSE,
+            rangemode = "tozero",
+            range = yrange)
+
+yAx2 <- list(showgrid = TRUE,
+            showline = FALSE,
+            zeroline =  FALSE,
+            overlaying = "y",
+            showticklabels = FALSE,
+            range = yrange,
+            tickvals = y_grid)
+
+
+fig <- plot_ly(data = plotdata, width = 500, height = 500)
+fig <- fig %>% add_trace(x = ~Var2, y = ~Var1, type = "scatter", mode = "markers",
+                        color = ~value,
+                        marker = list(size = ~size, opacity = 1),
+                        symbol = I("square"),
+                        text = ~value,
+                        hovertemplate = "%{text:.2f} <extra></extra>",
+                        xaxis = "x1",
+                        yaxis = "y1")
+
+fig <- fig %>% add_trace(x = ~Var2, y = ~Var1, type = "scatter", mode = "markers",
+                        opacity = 0,
+                        showlegend = FALSE,
+                        xaxis = "x2",
+                        yaxis = "y2",
+                        hoverinfo = "none")
+
+fig <- fig %>% layout(xaxis = xAx1,
+                     yaxis = yAx1, 
+                     xaxis2 = xAx2,
+                     yaxis2 = yAx2,
+                     plot_bgcolor = "rgba(0,0,0,0)",
+                     paper_bgcolor = "rgba(0, 0, 0, 0.03)")
+
+fig <- fig %>% colorbar(title = "", limits = c(-1,1), x = 1.1, y = 0.75)
+
+fig
+```
+
+***
+
+We conclude that life_expec and gdpp are highly negatively correlated while income and gdpp are positively correlated 
+
+***
+
+
+# Principle composant Analysis app
+
+***
+Before applying any clustering algorithm to the data set, the first thing to do is to see whether the data contains any inherent grouping structure. Then  we will perform hierarchical clustering and partitioning clustering with k-means
+
+
+We will use PCA to extract and visualize important information contained in our multivariate data. PCA synthesizes this information into just a few new variables called principal components, it reduces the the dimensions of our multivariate data.
+
+```{r}
+res.pca <- PCA(data, graph = FALSE)
+```
+
+***
+
+ Active element selection ... 
+ 
+
+## Interactive Graphic 
+
+***
+
+
+```{r}
+
+fluidPage(
+  numericInput("axe1", "Choose first axe", value = 1, min = 1, max = 5),
+  numericInput("axe2", "Choose second axe", value = 2, min = 1, max = 5)
+  
+
+)
+
+
+renderPlot( fviz_pca_ind(res.pca, col.ind = "coral", labelsize = 1, repel = TRUE, axes = c(input$axe1,input$axe2)))
+
+renderPlot( fviz_pca_var(res.pca, col.var = "#15317E",repel = TRUE, axes = c(input$axe1,input$axe2))
+)
+
+```
+
+***
+## Priciple axes selection
+
+***
+
+### Table of Variance 
+
+***
+We examine the eigenvalues to determine the number of principal components to consider. eigenvalues measure the amount of variance explained by each major axis. The eigenvalues are large for the first axes and small for the following axes. In other words, the first axes correspond to the directions carrying the maximum amount of variation contained in the data set. 
+
+```{r}
+eig <- round(get_eigenvalue(res.pca), 2)
+eig <- data.frame(eig)
+
+eig$cumulative.variance.percent[1:2] <- cell_spec(eig$cumulative.variance.percent[1:2], color = "red")
+
+eig$eigenvalue[1:2] <- cell_spec(eig$eigenvalue[1:2], color = "red")
+
+eig$variance.percent[1:2] <- cell_spec(eig$variance.percent[1:2], color = "red")
+
+
+kbl(eig, escape = F) %>%
+  kable_minimal('hover', 5) 
+
+```
+> about 63.13% of the total variance is explained by the first two eigenvalues.
+
+***
+
+### Proportion of vatriance
+
+Another method of determining the number of principal components is to look at the graph of eigenvalues 
+
+```{r}
+ggplotly(fviz_eig(res.pca)+ ggtitle(""))
+
+```
+From the graph above, and depending on the elbow criterion the we will stop at the seconde major component. 63.13% of the information (variances) contained in the data is retained by these two principal components which it is an acceptable percentage.
+
+***
+
+## Individuals analysis
+
+***
+
+### Individuals Graph 
+
+
+
+```{r}
+
+ggplotly(fviz_pca_ind(res.pca, col.ind = "coral", labelsize = 3, pointsize = 1, tooltip = c("")))
+
+```
+
+
+### Interpretation
+
+We can visually interpret the proximities between countries, for example we can conclude that Qatar and switizirland have the same behavior which means that they have similar socio-economic factors and development level.
+
+On the other hand, countries like Emmirate and Haiti have very different behaviors, these two countries are completely opposed to the first axis, they have different socio-economic factors so a different development level.
+
+***
+ 
+### Table of results {.tabset .tabset-fade}
+
+```{r}
+ind <- get_pca_ind(res.pca)
+
+```
+
+#### Hide
+
+#### Coord
+
+```{r}
+d_coord <- round(ind$coord[,1:2],2)
+d_coord <- data.frame(d_coord)
+
+d_coord[1:2] <- lapply(d_coord[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C"),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(d_coord[1:2], escape = F, align = "c") %>%
+  kable_material("hover",5) %>%
+  kable_styling("striped",full_width = F)
+```
+
+#### cos2
+
+```{r}
+d_cos <- round(ind$cos[,1:2],2)
+d_cos <- data.frame(d_cos)
+
+d_cos[1:2] <- lapply(d_cos[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C" ),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(d_cos[1:2], escape = F, align = "c") %>%
+  kable_material("hover",5) %>%
+  kable_styling("striped",full_width = F)
+
+```
+
+A high cos2 indicates a good representation of the variable on the main axes under consideration. Like  
+
+A low cos2 indicates that the variable is not perfectly represented by the main axes. 
+
+***
+
+
+
+#### contrib 
+
+```{r}
+d_contrib <- round(ind$contrib[,1:2],2)
+d_contrib <- data.frame(d_contrib)
+
+d_contrib[1:2] <- lapply(d_contrib[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C" ),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(d_contrib[1:2], escape = F, align = "c") %>%
+  kable_material("hover",5) %>%
+  kable_styling("striped",full_width = F)
+
+
+```
+
+#### {-}
+
+Countries as Luxembourg, Nigeria and Singapore have high contribution percentages for Axis 1 which corresponds. These countries contribute the most to the definition of dimensions 1.
+
+While countries such as Malta and United state have high contribution percentages for Axis 2 . These countries contribute most to the definition of dimensions 2.
+
+***
+
+## Variables Analysis 
+
+***
+
+### Variables Graph
+
+
+```{r}
+ggplotly(fviz_pca_var(res.pca, col.var = "#15317E", col.quanti.sup = "red" ))
+
+```
+
+The above graph is known as the Variable Correlation Graph. It shows the relationships between all the variables of our data. It can be interpreted as follows:
+
+* The positively correlated variables are grouped together.
+* Negatively correlated variables are positioned on opposite sides of the origin of the graph (opposite quadrants).
+* The distance between the variables and the origin measures the quality of representation of the variables. Variables that are far from the origin are well represented by the PCA.
+
+### Table of results {.tabset .tabset-fade}
+
+```{r}
+varr <- get_pca_var(res.pca)
+```
+
+#### Hide
+
+#### coord
+
+```{r}
+v_coord <- round(varr$coord[,1:2],2)
+v_coord <- data.frame(v_coord)
+
+v_coord[1:2] <- lapply(v_coord[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C" ),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(v_coord[1:2], escape = F, align = "c") %>%
+  kable_paper("hover", 5) %>%
+  kable_styling(c("striped", "condensed"), full_width = F, fixed_thead = TRUE)
+
+```
+
+
+#### cos2
+
+```{r}
+v_cos <- round(varr$cos2[,1:2],2)
+v_cos <- data.frame(v_cos)
+
+v_cos[1:2] <- lapply(v_cos[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C" ),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(v_cos[1:2], escape = F, align = "c") %>%
+  kable_paper("hover", 5) %>%
+  kable_styling(c("striped", "condensed"), full_width = F, fixed_thead = TRUE)
+
+```
+
+***
+```{r}
+# Cos2 total des variables sur Dim.1 et Dim.2
+ggplotly(fviz_cos2(res.pca, choice = "var", axes = 1:2))
+```
+
+#### contrib 
+
+```{r}
+v_contrib <- round(varr$contrib[,1:2],2)
+v_contrib <- data.frame(v_contrib)
+
+v_contrib[1:2] <- lapply(v_contrib[1:2], function(x) {
+  cell_spec(x, bold = T, color = spec_color(x, end = 0.9, direction = -1, option = "C" ),
+              font_size = spec_font_size(x))
+  })
+
+
+kbl(v_contrib[1:2], escape = F, align = "c") %>%
+  kable_paper("hover", 5) %>%
+  kable_styling(c("striped", "condensed"), full_width = F, fixed_thead = TRUE)
+
+```
+
+***
+```{r}
+ggplotly(fviz_contrib(res.pca, choice = "ind", axes = 1:2))
+
+```
+
+
+## Auto Description of axes {.tabset .tabset-fade}
+
+```{r}
+des <- dimdesc(res.pca)
+
+```
+
+### Dimension 1
+
+dimension description, can be used to identify the variables most significantly associated with a given principal component.
+
+```{r}
+
+d_dim1 <- round(des$Dim.1$quanti, 2)
+
+d_dim1 <- as.data.frame(d_dim1)
+
+
+
+kbl(d_dim1[1:2], escape = F, align = "c") %>%
+  kable_paper("hover", 5) %>%
+  column_spec(2, bold = T, color = spec_color(as.numeric(d_dim1$correlation[1:nrow(d_dim1)]), 
+                                              direction = -1, end = 0.9)) %>%
+  kable_styling(c("striped", "condensed"), full_width = F, fixed_thead = TRUE)
+
+
+
+```
+
+### Dimension 2
+
+```{r}
+d_dim2 <- round(des$Dim.2$quanti, 2)
+
+d_dim2 <- as.data.frame(d_dim2)
+
+
+
+kbl(d_dim2[1:2], escape = F, align = "c") %>%
+  kable_paper("hover", 5) %>%
+  column_spec(2, bold = T, color = spec_color(as.numeric(d_dim2$correlation[1:nrow(d_dim2)]), 
+                                              direction = -1, end = 0.9)) %>%
+  kable_styling(c("striped", "condensed"), full_width = F, fixed_thead = TRUE)
+
+```
+
+
+
+
+# K mean Clustering
+
+***
+
+We will compute Kmeans clustering with different K . We can also view our results by using fviz_cluster. This provides a nice illustration of the clusters. It will plot the data points according to the first two principal components of the PCA that explain the majority of the variance.
+
+As we don’t want the clustering algorithm to depend to an arbitrary variable unit, we start by scaling/standardizing the data
+
+
+```{r}
+
+
+sliderInput("km", "Cluster Number", min = 1, max = 5, value = 3)
+
+
+
+renderPlot(
+  
+  fviz_cluster(kmeans(scale(data), centers = input$km, nstart = 50), geom = "point", data = data,
+               ggtheme = theme_bw()))
+  
+
+```
+
+
+
+## Determining Optimal Number Of Clusters {.tabset .tabset-fade}
+
+***
+
+While working with clusters, we need to specify the number of clusters to use. we would like to utilize the optimal number of clusters. There are three popular methods to help us in determining the optimal clusters :
+
+* Elbow method
+* Silhouette method
+* Gap statistic
+
+### Elbow Method
+
+The main goal behind cluster partitioning methods like k-means is to define the clusters such that the intra-cluster variation stays minimum.
+
+
+
+```{r}
+#actionButton("Line", "Line")
+
+```
+
+```{r}
+
+ggplotly(fviz_nbclust(scale(data), kmeans, "wss") + ggtitle(" "))
+
+```
+
+
+> The elbow method graph do not show a sharp knee bend in this case, but we can consider k value as 4 .
+
+
+### Silhouette method
+
+Calculating the average silhouette coefficient provides a simple scoring method of a given clustering.
+
+A high average silhouette width indicates a good clustering. The average silhouette method computes the average silhouette of observations for different values of k. The optimal number of clusters k is the one that maximizes the average silhouette over a range of possible values for k
+
+
+```{r}
+
+ggplotly(fviz_nbclust(scale(data), kmeans, method = "silhouette") + ggtitle(" "))
+
+```
+
+ > Silhouette method shows that optimal number of clusters are 5
+ 
+
+### Gap Stat
+
+```{r}
+ggplotly(fviz_nbclust(scale(data), kmeans, method = "gap_stat") + ggtitle(""))
+
+```
+
+> Gap method shows that optimal number of clusters are 3
+
+### {-}
+
+***
+
+# Hierarchical clustering
+
+***
+
+The result of hierarchical clustering is a tree-based representation of the objects, which is also known as dendrogram. Observations can be subdivided into groups by cutting the dendrogram at a desired similarity level.
+
+```{r}
+
+fluidPage(
+  selectInput(inputId ='meth', label = "Agglomeration method", 
+              choices = c("ward.D", "ward.D2", "single", "complete",
+                          "average", "mcquitty", "median", "centroid")),
+  sliderInput("km2", "Group Number", min = 1, max = 5, value = 3),
+  actionButton("DenPlot", "Plot Dend"),
+  actionButton("hide", "Hide", class = "btn-primary")
+)
+
+plotOutput("dendo")
+
+
+
+k <- reactiveValues(data = NULL)
+
+observeEvent(input$DenPlot, { res.hc <- hclust(dist(scale(data), method = "euclidean"), method = input$meth)
+
+k$data <- fviz_dend(res.hc, k = input$km2, # Cut in four groups
+          cex = 0.5, # label size
+          color_labels_by_k = TRUE, # color labels by groups
+          rect = TRUE # Add rectangle around groups
+          ) + ggtitle("")
+  })
+
+
+observeEvent(input$hide, {
+    k$data <- NULL
+  })
+
+  output$dendo <- renderPlot({
+    if (is.null(k$data)) return()
+    k$data
+  })
+  
+
+
+
+```
+
+
+## Determining Optimal Number Of Clusters {.tabset .tabset-fade}
+
+### Elbow Method
+
+```{r}
+
+ggplotly(fviz_nbclust(scale(data), hcut, "wss") + ggtitle(""))
+
+```
+
+> The elbow method graph do not show a sharp knee bend in this case, but we can consider k value as 4 or 5.
+
+### Silhouette method
+
+```{r}
+ggplotly(fviz_nbclust(scale(data), hcut, "silhouette"))
+
+```
+
+> Silhouette method shows that optimal number of clusters are 2
+
+### Grap Stat
+
+```{r}
+ggplotly(fviz_nbclust(scale(data), hcut, "gap_stat"))
+
+```
+
+> Gap Statistic method shows that optimal number of clusters are 3.
+
+### {-}
+
+# Clustering validation and evaluation {.tabset}
+
+
+From previous results we can't take the right decision of the optimal number of cluster. So we will use the NbClust R package, which provides 30 indices for determining the best number of clusters. 
+
+
+```{r, include= FALSE}
+
+
+nc <- NbClust(scale(data), distance = "euclidean",
+        min.nc = 2, max.nc = 10, 
+        method = "ward.D", index ="all")
+```
+
+```{r}
+
+ggplotly(fviz_nbclust(nc, ggtheme = theme_minimal()))
+
+
+#fviz_nbclust(nc, kmeans)
+```
+
+
+As we see here, we have 5 indices proposed 2 cluster and 5 indices too proposed 4 clusters. So to choose the best cluster among teh two proposition, we will interpret the measure of the goodness of the classification k-means has found with  k = 2 and k = 4 
+
+## K = 2
+
+
+```{r}
+
+print(kmeans(scale(data), 2, nstart = 50))
+```
+
+
+
+## K = 4
+
+```{r}
+print(kmeans(scale(data), 4, nstart = 50))
+
+
+```
+
+
+
+## {-} 
+
+### Conclusion
+
+The BSS/TSS ratio of the kmean with 4 cluster which is 53.4% indication better fit than teh kmeans with 2 clutser with 30.% ratios.
+
+
+From above details we can conclude that cluster size of 4 will be suitable for us, as it separates the high variation observations in a seperate group. This cluster can include potential high spending customers .
+
+Thus we will calculate our final analysis using 4 as optimal clusters.
+
+
+```{r}
+
+res.hc <- hclust(dist(scale(data), method = "euclidean"), method = "ward.D")
+res.km <- kmeans(scale(data), 4, nstart = 50)
+
+
+```
+
+
+
+# Choosing Cluster {.tabset .tabset-fade}
+
+Which clusters to extract and add to our initial data to do some descriptive statistics at the cluster level. We conclude from below cluster graph that the kmeans has better fit.
+
+
+## Kmeans 
+
+```{r}
+ggplotly(fviz_cluster(kmeans(scale(data), 4, nstart = 50), data = data, geom = "point", ggtheme = theme_bw()) + ggtitle("Kmeans Cluster Plot"))
+
+```
+
+
+## Hierarchical
+
+```{r}
+
+cleuster <- cutree(res.hc, k=4)
+
+
+ach_class <- as.factor(cleuster)
+
+data_cfl <- cbind.data.frame(data, ach_class)
+
+ggplotly(fviz_cluster(list(data = data, cluster = cleuster), geom = "point", ggtheme = theme_bw()) + ggtitle("ACH Cluster Plot"))
+
+```
+
+
+## {-}
+
+```{r dataset with claas column}
+
+
+category <- res.km$cluster
+
+df_clf <- cbind.data.frame(data, category)
+
+df_clf$category <- as.factor(df_clf$category)
+#write.csv(df_clf)
+
+```
+
+# Results Overview
+
+```{r}
+head(df_clf)
+
+```
+
+***
+
+# Countries segments Analysis
+
+Recall that we performed our k-means clustering using K = 4 or in other words, we have grouped the dataset into 4 distinct clusters. Let’s now carefully analyze these clusters and see if we can come up with any interesting deductions.
+ 
+ 
+```{r}
+
+res.cat <- catdes(df_clf, num.var = 10)
+res.cat
+
+```
+
+***
+
+cluster 1 : is characterized by a high gdpp which means the economy is growing, and the resources available to people in the country – goods and services, wages and profits, are increasing. Also we can see a high income level, life_expec and health; good quality of life
+
+> 1 : developed countries 
+
+cluster 2 : is characterized by a high level of total_fer, child_mort and inflation with very low gdpp, income and life_expec; poor quality of life
+
+> 2 : least developed countries
+
+cluster 3 : export in this category higher than import, when a companies are exporting a high level of goods, this also equates to a flow of funds into the country, which stimulates consumer spending and contributes to economic growth.
+
+> 3 : developing countries
+
+cluster 4 : is characterized by life_expec with low gdpp  
+
+> 4 : Midle developed countries
+
+
+***
+
+# Geographic Map 
+
+
+***
+
+This map illustrate the distribution of countries by their level of development
+
+
+```{r}
+
+df_formap <- df_clf
+df_formap["Country"] <- rownames(df_clf)
+
+
+Geo=gvisGeoChart(df_formap, locationvar="Country", 
+                 colorvar="category",
+                 options=list(projection="kavrayskiy-vii"))
+plot(Geo)
+
+```
+
+***
+
+# Interactive Filtring by Category
+
+***
+
+```{r}
+
+datatable(df_clf, filter = 'top', rownames = TRUE)
+
+```
+
+
+
+
+# Machine Learning Models
+
+As a Machine learning engineer / Data Scientist, we will  create an ML model to classify countries by the level of their development. To achieve this goal, we will use the supervised machine learning classifier algorithms and select the best in term of accuracy.
+To build the best model, we have to train and test the dataset with multiple Machine Learning algorithms then we can find the best ML model such us :
+
+* Logistic Regression
+* Support Vector Classifier
+* Decision Tree Classifier
+
+
+
+
+
+## 1.LogisticRegression
+
+### Variable Selection for the model
+
+
+```{r, echo=TRUE}
+
+mod <- multinom(df_clf$category ~ ., data = df_clf)
+
+modele.backward <- stepAIC(mod,~., trace = TRUE, data = df_clf, direction = "backward")
+```
+
+> health      3 43.516
+- exports     3 53.433
+- income      3 72.249
+- total_fer   3 73.276
+- life_expec  3 82.06
+
+
+### Prediction
+
+**Defining the dataset with the variables needed**
+
+```{r, echo=TRUE}
+
+logis_df <- df_clf[, c(2,3,5,7,8, 10)]
+attach(logis_df)
+head(logis_df)
+```
+
+
+
+**Spliting DataFrame in train and test sets**
+
+```{r, echo=TRUE}
+
+set.seed(123)
+split <- sample.split(logis_df$category, SplitRatio = 0.8)
+training_set <- subset(logis_df, split == TRUE)
+test_set <- subset(logis_df, split == FALSE)
+
+print(paste0("training set : ", dim(training_set)[1]))
+print(paste0("testing set : ", dim(test_set)[1]))
+
+```
+
+
+**Feature Scaling**
+
+```{r, echo=TRUE}
+
+training_set[1:5] = scale(training_set[1:5])
+test_set[1:5] = scale(test_set[1:5])
+
+head(training_set)
+```
+
+
+
+
+**Fitting Logistic Regression to the Training set**
+
+
+
+```{r, echo=TRUE}
+
+logis_classifier <- multinom(category ~ exports + health + income + life_expec + total_fer, data = logis_df)
+```
+
+
+**Predicting the Test set results**
+
+```{r, echo=TRUE}
+predicted.class <- predict(logis_classifier, newdata = test_set[1:5])
+
+
+```
+
+**Model accuracy**
+
+```{r}
+mean(predicted.class == test_set$category )
+
+```
+
+**Model with all variable included**
+
+```{r, echo=TRUE}
+
+set.seed(123)
+split <- sample.split(df_clf$category, SplitRatio = 0.8)
+training_set2 <- subset(df_clf, split == TRUE)
+test_set2 <- subset(df_clf, split == FALSE)
+
+
+training_set2[1:9] = scale(training_set2[1:9])
+test_set2[1:9] = scale(test_set2[1:9])
+
+head(training_set2)
+
+
+logis_classifier2 <- multinom(category ~ ., data = df_clf)
+
+predicted.class2 <- predict(logis_classifier2, newdata = test_set2[1:9])
+mean(predicted.class2 == test_set2$category )
+
+
+```
+> The accuracy score of the model with all variables better then the first model with an accuracy score about 70 %.
+
+
+## 2.Decision Tree
+
+
+
+```{r, echo=TRUE}
+
+dtree_classifier <-  rpart(category ~ .,
+                   data = training_set2)
+
+
+predicted.class.tree <- predict(dtree_classifier, newdata = test_set2[1:9], type = "class")
+
+mean(predicted.class.tree == test_set2$category )
+
+```
+
+
+## 3.Kernel SVM
+
+```{r, echo=TRUE}
+
+svm2_classifier = svm(category ~ .,
+                 data = training_set2,
+                 type = 'C-classification',
+                 kernel = 'radial')
+
+predicted.class.svm2 <- predict(svm2_classifier, newdata = test_set2[1:9])
+
+mean(predicted.class.svm2 == test_set2$category )
+
+
+```
+```{r}
+head(df_clf)
+```
+
+
+> The choosen Model is the SVM which have the highest accuracy score about 97% 
+
+# Predit new data input
+
+This will help the CEO the organization to classify countries if the socio economic factors changes in the future
+
+```{r}
+library(shiny)
+
+fluidPage(
+  textInput("childmort", label = "child_mort value", value = 90.2 ),
+  textInput("exports", label = "exports value", value = 10.0 ),
+  textInput("health", label = "health value", value = 7.58 ),
+  textInput("imports", label = "imports value", value = 44.9 ),
+  textInput("income", label = "income value", value = 9930 ),
+  textInput("inflation", label = "inflation value", value = 4.49 ),
+  textInput("life_expec", label = "life_expec value", value = 60.1 ),
+  textInput("total_fer", label = "total_fer value", value = 5.82 ),
+  textInput("gdpp", label = "health value", value = 1200 ),
+  actionButton("pred","Classify"),
+  textOutput("res")
+)
+
+
+
+class_res <- eventReactive(input$pred,
+                           { as.character(predict(svm2_classifier, newdata = as.data.frame(as.numeric(input$childmort),as.numeric(input$exports),
+                                                            as.numeric(input$health),as.numeric(input$imports),
+                                                            as.numeric(input$income),as.numeric(input$inflation),
+                                                            as.numeric(input$life_expec),as.numeric(input$total_fer),
+                                                            as.numeric(input$gdpp)
+                                                             )
+                                                 
+                                                 ))                     
+  })
+
+
+renderText({
+  class_res()
+  })
+
+```
+
+
+
+
+
+```{r}
+textInput("childmort", label = "child_mort value", value = 90.2 )
+
+renderText(input$childmort)
+
+```
+
+
+
+
+
+  
